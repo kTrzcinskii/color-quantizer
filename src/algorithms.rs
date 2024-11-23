@@ -22,3 +22,28 @@ impl Display for Algorithm {
         }
     }
 }
+
+pub enum AlgorithmType {
+    Dithering,
+    Popularity,
+}
+
+impl From<Algorithm> for AlgorithmType {
+    fn from(value: Algorithm) -> Self {
+        match value {
+            Algorithm::AverageDithering => AlgorithmType::Dithering,
+            Algorithm::ErrorDiffusionDithering => AlgorithmType::Dithering,
+            Algorithm::OrderedDitheringRandom => AlgorithmType::Dithering,
+            Algorithm::OrderedDitheringRelative => AlgorithmType::Dithering,
+            Algorithm::PopularityAlgorithm => AlgorithmType::Popularity,
+        }
+    }
+}
+
+pub struct DitheringParameters {
+    // TODO:
+}
+
+pub struct PopularityParameters {
+    // TODO:
+}
