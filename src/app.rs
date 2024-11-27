@@ -67,13 +67,21 @@ impl App {
             Default::default(),
         );
 
-        // TODO: how to center it properly? for small images in max window size it looks bad
+        let normal_image = egui::Image::new(&image_texture).max_width(max_width);
+        let changed_image = egui::Image::new(&image_texture).max_width(max_width);
+        let img_width = normal_image
+            .size()
+            .map(|v| v[0])
+            .unwrap_or(max_width)
+            .min(max_width);
+        let space_width =
+            (1.0 - img_width * 2.0 / available_rect.width()) / 3.0 * available_rect.width();
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.add_space(available_rect.width() / 9.0);
-            ui.add(egui::Image::new(&image_texture).max_width(max_width));
-            ui.add_space(available_rect.width() / 9.0);
+            ui.add_space(space_width);
+            ui.add(normal_image);
+            ui.add_space(space_width);
             // TODO: show actual new image
-            ui.add(egui::Image::new(&image_texture).max_width(max_width));
+            ui.add(changed_image);
         });
     }
 
