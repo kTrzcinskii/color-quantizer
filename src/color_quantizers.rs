@@ -52,14 +52,27 @@ impl ColorQuantizer for AverageDitheringColorQuantizer {
         let b_levels = AverageDitheringColorQuantizer::generate_color_levels(params.k_b);
         let output_pixels: Vec<_> = initial_image
             .pixels
-            .par_iter()
-            .map(|pixel| {
-                let r = AverageDitheringColorQuantizer::find_closest_level(pixel.r(), &r_levels);
-                let g = AverageDitheringColorQuantizer::find_closest_level(pixel.g(), &g_levels);
-                let b = AverageDitheringColorQuantizer::find_closest_level(pixel.b(), &b_levels);
-                egui::Color32::from_rgb(r, g, b).to_array()
+            .par_chunks(256)
+            .flat_map(|chunk| {
+                chunk
+                    .iter()
+                    .flat_map(|&pixel| {
+                        let r = AverageDitheringColorQuantizer::find_closest_level(
+                            pixel.r(),
+                            &r_levels,
+                        );
+                        let g = AverageDitheringColorQuantizer::find_closest_level(
+                            pixel.g(),
+                            &g_levels,
+                        );
+                        let b = AverageDitheringColorQuantizer::find_closest_level(
+                            pixel.b(),
+                            &b_levels,
+                        );
+                        egui::Color32::from_rgb(r, g, b).to_array()
+                    })
+                    .collect::<Vec<_>>()
             })
-            .flatten()
             .collect();
         let size = initial_image.size;
         ColorImage::from_rgba_unmultiplied(size, output_pixels.as_slice())
