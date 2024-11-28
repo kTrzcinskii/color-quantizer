@@ -14,35 +14,35 @@ pub struct AverageDitheringColorQuantizer;
 impl AverageDitheringColorQuantizer {
     fn generate_color_levels(k: u8) -> Vec<u8> {
         (0..k)
-            .map(|i| ((i as f64) * 255.0 / (k - 1) as f64).round() as u8)
+            .map(|i| ((i as f32) * 255.0 / (k - 1) as f32).round() as u8)
             .collect()
     }
 
     fn find_closest_level(value: u8, levels: &[u8]) -> u8 {
+        if value <= levels[0] {
+            return levels[0];
+        }
+        if value >= levels[levels.len() - 1] {
+            return levels[levels.len() - 1];
+        }
+
         // We can use bin search because we know levels are sorted
-        match levels.binary_search_by(|x| x.cmp(&value)) {
-            Ok(id) => levels[id],
-            Err(id) => {
-                let length = levels.len();
-                if id == 0 {
-                    levels[0]
-                } else if id == length {
-                    levels[length - 1]
+        match levels.binary_search(&value) {
+            Ok(idx) => levels[idx],
+            Err(idx) => {
+                // At this point we know that it's not gonna be first nor last, because we check it at the beginning
+                let prev = levels[idx - 1];
+                let next = levels[idx];
+                if (value - prev) <= (next - value) {
+                    prev
                 } else {
-                    let prev = levels[id - 1];
-                    let next = levels[id];
-                    if (value - prev) < (next - value) {
-                        prev
-                    } else {
-                        next
-                    }
+                    next
                 }
             }
         }
     }
 }
 
-// FIXME: colors seem a little off
 impl ColorQuantizer for AverageDitheringColorQuantizer {
     type Params = DitheringParameters;
 
