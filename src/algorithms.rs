@@ -40,8 +40,11 @@ impl From<Algorithm> for AlgorithmType {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct DitheringParameters {
-    // TODO:
+    pub k_r: u8,
+    pub k_g: u8,
+    pub k_b: u8,
 }
 
 pub struct PopularityParameters {

@@ -25,7 +25,7 @@ impl App {
                     ui.add_space(8.0);
                 }
                 match AlgorithmType::from(self.algorithm) {
-                    AlgorithmType::Dithering => self.show_dithering_parameters(ctx),
+                    AlgorithmType::Dithering => self.show_dithering_parameters(ui),
                     AlgorithmType::Popularity => self.show_popularity_parameters(ctx),
                 }
                 if self.initial_image.is_some() {
@@ -34,8 +34,12 @@ impl App {
             });
     }
 
-    fn show_dithering_parameters(&mut self, ctx: &egui::Context) {
-        // TODO:
+    fn show_dithering_parameters(&mut self, ui: &mut egui::Ui) {
+        ui.vertical(|ui| {
+            ui.add(egui::Slider::new(&mut self.dithering_parameters.k_r, 2..=255).text("Kr"));
+            ui.add(egui::Slider::new(&mut self.dithering_parameters.k_g, 2..=255).text("Kg"));
+            ui.add(egui::Slider::new(&mut self.dithering_parameters.k_b, 2..=255).text("Kb"));
+        });
     }
 
     fn show_popularity_parameters(&mut self, ctx: &egui::Context) {
@@ -119,7 +123,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             algorithm: Algorithm::AverageDithering,
-            dithering_parameters: DitheringParameters {},
+            dithering_parameters: DitheringParameters::default(),
             popularity_algorithm_parameters: PopularityParameters {},
             initial_image: None,
         }
