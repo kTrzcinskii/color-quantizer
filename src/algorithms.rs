@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use strum_macros::EnumIter;
 
-#[derive(EnumIter, PartialEq, Clone, Copy)]
+#[derive(Debug, EnumIter, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum Algorithm {
     AverageDithering,
     ErrorDiffusionDithering,
@@ -40,13 +40,26 @@ impl From<Algorithm> for AlgorithmType {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct DitheringParameters {
     pub k_r: u8,
     pub k_g: u8,
     pub k_b: u8,
 }
 
+#[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct PopularityParameters {
     // TODO:
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum AlgorithmParameters {
+    Dithering(DitheringParameters),
+    Popularity(PopularityParameters),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct AlgorithmCacheKey {
+    pub algorithm: Algorithm,
+    pub params: AlgorithmParameters,
 }

@@ -1,16 +1,25 @@
+use std::num::NonZero;
+
 use rfd::FileDialog;
 use strum::IntoEnumIterator;
 
 use crate::{
-    algorithms::{Algorithm, AlgorithmType, DitheringParameters, PopularityParameters},
+    algorithms::{
+        Algorithm, AlgorithmCacheKey, AlgorithmParameters, AlgorithmType, DitheringParameters,
+        PopularityParameters,
+    },
     image_loader,
+    processed_images_cache::ProcessedImagesCache,
 };
+
+const CACHE_SIZE: usize = 512;
 
 pub struct App {
     algorithm: Algorithm,
     dithering_parameters: DitheringParameters,
     popularity_algorithm_parameters: PopularityParameters,
     initial_image: Option<egui::ColorImage>,
+    processed_images_cache: ProcessedImagesCache,
 }
 
 impl App {
@@ -49,7 +58,7 @@ impl App {
     fn show_central_panel(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| match &self.initial_image {
             Some(initial_image) => {
-                self.show_images(ctx, ui, initial_image);
+                self.show_images(ctx, ui, initial_image.to_owned());
             }
             None => {
                 self.show_load_initial_image_button(ui);
@@ -58,21 +67,28 @@ impl App {
     }
 
     fn show_images(
-        &self,
+        &mut self,
         ctx: &egui::Context,
         ui: &mut egui::Ui,
-        initial_image: &egui::ColorImage,
+        initial_image: egui::ColorImage,
     ) {
         let available_rect = ui.available_rect_before_wrap();
         let max_width = available_rect.width() / 3.0;
-        let image_texture = ctx.load_texture(
-            "INITIAL_IMAGE",
-            initial_image.to_owned(),
+        let alg_cache_key = self.current_algorithm_cache_key();
+        let processed_image = self
+            .processed_images_cache
+            .get(alg_cache_key, &initial_image);
+
+        let image_texture = ctx.load_texture("INITIAL_IMAGE", initial_image, Default::default());
+        let processed_image_texture = ctx.load_texture(
+            "PROCESSED_IMAGE",
+            processed_image.to_owned(),
             Default::default(),
         );
 
         let normal_image = egui::Image::new(&image_texture).max_width(max_width);
-        let changed_image = egui::Image::new(&image_texture).max_width(max_width);
+        let processed_image = egui::Image::new(&processed_image_texture).max_width(max_width);
+
         let img_width = normal_image
             .size()
             .map(|v| v[0])
@@ -80,12 +96,12 @@ impl App {
             .min(max_width);
         let space_width =
             (1.0 - img_width * 2.0 / available_rect.width()) / 3.0 * available_rect.width();
+
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.add_space(space_width);
             ui.add(normal_image);
             ui.add_space(space_width);
-            // TODO: show actual new image
-            ui.add(changed_image);
+            ui.add(processed_image);
         });
     }
 
@@ -106,6 +122,7 @@ impl App {
     fn show_change_image_button(&mut self, ui: &mut egui::Ui) {
         if ui.button("Change image").clicked() {
             self.file_dialog_change_image();
+            self.processed_images_cache.clear();
         }
     }
 
@@ -117,6 +134,17 @@ impl App {
             self.initial_image = Some(image_loader::load_image_from_path(path).unwrap());
         }
     }
+
+    fn current_algorithm_cache_key(&self) -> AlgorithmCacheKey {
+        let algorithm = self.algorithm;
+        let params = match AlgorithmType::from(algorithm) {
+            AlgorithmType::Dithering => AlgorithmParameters::Dithering(self.dithering_parameters),
+            AlgorithmType::Popularity => {
+                AlgorithmParameters::Popularity(self.popularity_algorithm_parameters)
+            }
+        };
+        AlgorithmCacheKey { algorithm, params }
+    }
 }
 
 impl Default for App {
@@ -126,6 +154,7 @@ impl Default for App {
             dithering_parameters: DitheringParameters::default(),
             popularity_algorithm_parameters: PopularityParameters {},
             initial_image: None,
+            processed_images_cache: ProcessedImagesCache::new(NonZero::new(CACHE_SIZE).unwrap()),
         }
     }
 }
