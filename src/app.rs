@@ -75,7 +75,7 @@ impl App {
         let k_response = ui.add(
             egui::Slider::new(
                 &mut self.current_popularity_algorithm_parameters.k,
-                2..=1024,
+                2..=8192,
             )
             .text("K"),
         );
@@ -163,6 +163,7 @@ impl App {
         if ui.button("Change image").clicked() {
             self.file_dialog_change_image();
             self.processed_images_cache.clear();
+            self.need_image_update = true;
         }
     }
 

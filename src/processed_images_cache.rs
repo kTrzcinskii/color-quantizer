@@ -5,7 +5,9 @@ use lru::LruCache;
 
 use crate::{
     algorithms::{Algorithm, AlgorithmCacheKey, AlgorithmParameters},
-    color_quantizers::{AverageDitheringColorQuantizer, ColorQuantizer},
+    color_quantizers::{
+        AverageDitheringColorQuantizer, ColorQuantizer, PopularityAlgorithmColorQuantizer,
+    },
 };
 
 pub struct ProcessedImagesCache {
@@ -41,7 +43,13 @@ impl ProcessedImagesCache {
             Algorithm::ErrorDiffusionDithering => todo!(),
             Algorithm::OrderedDitheringRandom => todo!(),
             Algorithm::OrderedDitheringRelative => todo!(),
-            Algorithm::PopularityAlgorithm => todo!(),
+            Algorithm::PopularityAlgorithm => {
+                let params = match key.params {
+                    AlgorithmParameters::Dithering(_) => panic!("UNREACHABLE"),
+                    AlgorithmParameters::Popularity(popularity_parameters) => popularity_parameters,
+                };
+                PopularityAlgorithmColorQuantizer::generate_output_image(params, initial_image)
+            }
         }
     }
 }
