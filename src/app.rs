@@ -18,7 +18,7 @@ pub struct App {
     algorithm: Algorithm,
     last_processed_dithering_parameters: DitheringParameters,
     current_dithering_parameters: DitheringParameters,
-    last_popularity_algorithm_parameters: PopularityParameters,
+    last_processed_popularity_algorithm_parameters: PopularityParameters,
     current_popularity_algorithm_parameters: PopularityParameters,
     initial_image: Option<egui::ColorImage>,
     processed_image: Option<egui::ColorImage>,
@@ -39,7 +39,7 @@ impl App {
                 }
                 match AlgorithmType::from(self.algorithm) {
                     AlgorithmType::Dithering => self.show_dithering_parameters(ui),
-                    AlgorithmType::Popularity => self.show_popularity_parameters(ctx),
+                    AlgorithmType::Popularity => self.show_popularity_parameters(ui),
                 }
                 if self.initial_image.is_some() {
                     self.show_change_image_button(ui);
@@ -60,16 +60,34 @@ impl App {
             );
 
             let any_dragging = r_response.dragged() || g_response.dragged() || b_response.dragged();
+            let any_focus =
+                r_response.has_focus() || g_response.has_focus() || b_response.has_focus();
             let values_changed =
                 self.current_dithering_parameters != self.last_processed_dithering_parameters;
-            if values_changed && !any_dragging {
+            if values_changed && !any_dragging && !any_focus {
+                self.last_processed_dithering_parameters = self.current_dithering_parameters;
                 self.need_image_update = true;
             }
         });
     }
 
-    fn show_popularity_parameters(&mut self, ctx: &egui::Context) {
-        // TODO:
+    fn show_popularity_parameters(&mut self, ui: &mut egui::Ui) {
+        let k_response = ui.add(
+            egui::Slider::new(
+                &mut self.current_popularity_algorithm_parameters.k,
+                2..=1024,
+            )
+            .text("K"),
+        );
+        let is_dragging = k_response.dragged();
+        let is_focused = k_response.has_focus();
+        let values_changed = self.current_popularity_algorithm_parameters
+            != self.last_processed_popularity_algorithm_parameters;
+        if values_changed && !is_dragging && !is_focused {
+            self.last_processed_popularity_algorithm_parameters =
+                self.current_popularity_algorithm_parameters;
+            self.need_image_update = true;
+        }
     }
 
     fn show_central_panel(&mut self, ctx: &egui::Context) {
@@ -93,6 +111,12 @@ impl App {
         let max_width = available_rect.width() / 3.0;
 
         let image_texture = ctx.load_texture("INITIAL_IMAGE", initial_image, Default::default());
+
+        if self.processed_image.is_none() {
+            self.need_image_update = true;
+            self.update_image();
+        }
+
         let processed_image_texture = ctx.load_texture(
             "PROCESSED_IMAGE",
             self.processed_image
@@ -184,12 +208,12 @@ impl Default for App {
             algorithm: Algorithm::AverageDithering,
             last_processed_dithering_parameters: DitheringParameters::default(),
             current_dithering_parameters: DitheringParameters::default(),
-            last_popularity_algorithm_parameters: PopularityParameters::default(),
+            last_processed_popularity_algorithm_parameters: PopularityParameters::default(),
             current_popularity_algorithm_parameters: PopularityParameters::default(),
             initial_image: None,
             processed_image: None,
             processed_images_cache: ProcessedImagesCache::new(NonZero::new(CACHE_SIZE).unwrap()),
-            need_image_update: false,
+            need_image_update: true,
         }
     }
 }

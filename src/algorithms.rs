@@ -49,7 +49,7 @@ pub struct DitheringParameters {
 
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct PopularityParameters {
-    // TODO:
+    pub k: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
