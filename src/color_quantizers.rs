@@ -139,7 +139,8 @@ impl ErrorDiffusionDitheringColorQuantizer {
         (level, diff)
     }
 
-    const ERROR_WAGE_MATRIX: [f32; 9] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.4375, 0.1875, 0.3125, 0.0625];
+    const ERROR_WAGE_MATRIX: [f32; 4] = [0.4375, 0.1875, 0.3125, 0.0625];
+    const OFFSET: usize = 5;
 }
 
 impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
@@ -167,17 +168,18 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
             );
             output_pixels[i] = Color32::from_rgb(r, g, b);
             for j in 0..ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX.len() {
-                if i + j >= output_pixels.len() {
+                let id = i + j + ErrorDiffusionDitheringColorQuantizer::OFFSET;
+                if id >= output_pixels.len() {
                     break;
                 }
-                let to_change = output_pixels[i + j];
+                let to_change = output_pixels[id];
                 let new_r = to_change.r() as f32
                     + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * r_diff;
                 let new_g = to_change.g() as f32
                     + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * g_diff;
                 let new_b = to_change.b() as f32
                     + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * b_diff;
-                output_pixels[i + j] = Color32::from_rgb(new_r as u8, new_g as u8, new_b as u8);
+                output_pixels[id] = Color32::from_rgb(new_r as u8, new_g as u8, new_b as u8);
             }
         }
         let size = initial_image.size;
