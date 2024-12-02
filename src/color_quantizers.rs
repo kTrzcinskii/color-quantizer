@@ -19,11 +19,7 @@ impl DitheringCommon {
             .map(|i| ((i as f32) * 255.0 / (k - 1) as f32).round() as u8)
             .collect()
     }
-}
 
-pub struct AverageDitheringColorQuantizer;
-
-impl AverageDitheringColorQuantizer {
     fn find_closest_level(value: u8, levels: &[u8]) -> u8 {
         if value <= levels[0] {
             return levels[0];
@@ -49,6 +45,8 @@ impl AverageDitheringColorQuantizer {
     }
 }
 
+pub struct AverageDitheringColorQuantizer;
+
 impl ColorQuantizer for AverageDitheringColorQuantizer {
     type Params = DitheringParameters;
 
@@ -63,9 +61,9 @@ impl ColorQuantizer for AverageDitheringColorQuantizer {
                 chunk
                     .iter()
                     .flat_map(|&pixel| {
-                        let r = Self::find_closest_level(pixel.r(), &r_levels);
-                        let g = Self::find_closest_level(pixel.g(), &g_levels);
-                        let b = Self::find_closest_level(pixel.b(), &b_levels);
+                        let r = DitheringCommon::find_closest_level(pixel.r(), &r_levels);
+                        let g = DitheringCommon::find_closest_level(pixel.g(), &g_levels);
+                        let b = DitheringCommon::find_closest_level(pixel.b(), &b_levels);
                         egui::Color32::from_rgb(r, g, b).to_array()
                     })
                     .collect::<Vec<_>>()
@@ -129,5 +127,67 @@ impl ColorQuantizer for PopularityAlgorithmColorQuantizer {
             .collect();
         let size = initial_image.size;
         ColorImage::from_rgba_unmultiplied(size, output_pixesl.as_slice())
+    }
+}
+
+pub struct ErrorDiffusionDitheringColorQuantizer;
+
+impl ErrorDiffusionDitheringColorQuantizer {
+    fn find_closest_level_and_diff(value: u8, levels: &[u8]) -> (u8, f32) {
+        let level = DitheringCommon::find_closest_level(value, levels);
+        let diff = value as f32 - level as f32;
+        (level, diff)
+    }
+
+    const ERROR_WAGE_MATRIX: [f32; 9] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.4375, 0.1875, 0.3125, 0.0625];
+}
+
+impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
+    type Params = DitheringParameters;
+
+    fn generate_output_image(params: Self::Params, initial_image: &ColorImage) -> ColorImage {
+        let r_levels = DitheringCommon::generate_color_levels(params.k_r);
+        let g_levels = DitheringCommon::generate_color_levels(params.k_g);
+        let b_levels = DitheringCommon::generate_color_levels(params.k_b);
+
+        let mut output_pixels = initial_image.pixels.clone();
+        for i in 0..output_pixels.len() {
+            let pixel = output_pixels[i];
+            let (r, r_diff) = ErrorDiffusionDitheringColorQuantizer::find_closest_level_and_diff(
+                pixel.r(),
+                &r_levels,
+            );
+            let (g, g_diff) = ErrorDiffusionDitheringColorQuantizer::find_closest_level_and_diff(
+                pixel.g(),
+                &g_levels,
+            );
+            let (b, b_diff) = ErrorDiffusionDitheringColorQuantizer::find_closest_level_and_diff(
+                pixel.b(),
+                &b_levels,
+            );
+            output_pixels[i] = Color32::from_rgb(r, g, b);
+            for j in 0..ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX.len() {
+                if i + j >= output_pixels.len() {
+                    break;
+                }
+                let to_change = output_pixels[i + j];
+                let new_r = to_change.r() as f32
+                    + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * r_diff;
+                let new_g = to_change.g() as f32
+                    + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * g_diff;
+                let new_b = to_change.b() as f32
+                    + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * b_diff;
+                output_pixels[i + j] = Color32::from_rgb(new_r as u8, new_g as u8, new_b as u8);
+            }
+        }
+        let size = initial_image.size;
+        ColorImage::from_rgba_unmultiplied(
+            size,
+            output_pixels
+                .iter()
+                .flat_map(|&p| p.to_array())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
     }
 }
