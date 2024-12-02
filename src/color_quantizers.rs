@@ -74,6 +74,7 @@ impl ColorQuantizer for AverageDitheringColorQuantizer {
     }
 }
 
+// TODO: for bigger Ks it's quite slow, any idea to speed it up?
 pub struct PopularityAlgorithmColorQuantizer;
 
 impl PopularityAlgorithmColorQuantizer {

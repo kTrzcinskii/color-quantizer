@@ -12,9 +12,10 @@ use crate::{
     processed_images_cache::ProcessedImagesCache,
 };
 
-const CACHE_SIZE: usize = 8;
+const CACHE_SIZE: usize = 16;
 
 pub struct App {
+    previous_algorithm: Algorithm,
     algorithm: Algorithm,
     last_processed_dithering_parameters: DitheringParameters,
     current_dithering_parameters: DitheringParameters,
@@ -36,6 +37,10 @@ impl App {
                 for alg in Algorithm::iter() {
                     ui.radio_value(&mut self.algorithm, alg, format!("{}", alg));
                     ui.add_space(8.0);
+                }
+                if self.previous_algorithm != self.algorithm {
+                    self.previous_algorithm = self.algorithm;
+                    self.need_image_update = true;
                 }
                 match AlgorithmType::from(self.algorithm) {
                     AlgorithmType::Dithering => self.show_dithering_parameters(ui),
@@ -206,6 +211,7 @@ impl App {
 impl Default for App {
     fn default() -> Self {
         Self {
+            previous_algorithm: Algorithm::AverageDithering,
             algorithm: Algorithm::AverageDithering,
             last_processed_dithering_parameters: DitheringParameters::default(),
             current_dithering_parameters: DitheringParameters::default(),
