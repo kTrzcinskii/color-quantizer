@@ -11,15 +11,19 @@ pub trait ColorQuantizer {
     fn generate_output_image(params: Self::Params, initial_image: &ColorImage) -> ColorImage;
 }
 
-pub struct AverageDitheringColorQuantizer;
+struct DitheringCommon;
 
-impl AverageDitheringColorQuantizer {
+impl DitheringCommon {
     fn generate_color_levels(k: u8) -> Vec<u8> {
         (0..k)
             .map(|i| ((i as f32) * 255.0 / (k - 1) as f32).round() as u8)
             .collect()
     }
+}
 
+pub struct AverageDitheringColorQuantizer;
+
+impl AverageDitheringColorQuantizer {
     fn find_closest_level(value: u8, levels: &[u8]) -> u8 {
         if value <= levels[0] {
             return levels[0];
@@ -49,9 +53,9 @@ impl ColorQuantizer for AverageDitheringColorQuantizer {
     type Params = DitheringParameters;
 
     fn generate_output_image(params: Self::Params, initial_image: &ColorImage) -> ColorImage {
-        let r_levels = Self::generate_color_levels(params.k_r);
-        let g_levels = Self::generate_color_levels(params.k_g);
-        let b_levels = Self::generate_color_levels(params.k_b);
+        let r_levels = DitheringCommon::generate_color_levels(params.k_r);
+        let g_levels = DitheringCommon::generate_color_levels(params.k_g);
+        let b_levels = DitheringCommon::generate_color_levels(params.k_b);
         let output_pixels: Vec<_> = initial_image
             .pixels
             .par_chunks(256)
