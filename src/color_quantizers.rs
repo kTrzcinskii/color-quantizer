@@ -194,3 +194,94 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
         )
     }
 }
+
+pub struct OrderedDitheringCommon;
+
+impl OrderedDitheringCommon {
+    const POSSIBLE_N: [u8; 7] = [2, 3, 4, 6, 8, 12, 16];
+
+    fn find_n(k: u8) -> u8 {
+        *Self::POSSIBLE_N
+            .iter()
+            .find(|&&n| n as u32 * n as u32 * (k as u32 - 1) >= 256)
+            .unwrap_or(Self::POSSIBLE_N.last().unwrap())
+    }
+
+    fn generate_matrix(n: u8) -> Vec<Vec<u32>> {
+        let mut matrix: Vec<Vec<u32>> = vec![vec![0; n as usize]; n as usize];
+        if n == 2 {
+            matrix[0][0] = 0;
+            matrix[0][1] = 2;
+            matrix[1][0] = 3;
+            matrix[1][1] = 1;
+            return matrix;
+        }
+        if n == 3 {
+            matrix[0][0] = 6;
+            matrix[0][1] = 8;
+            matrix[0][2] = 4;
+            matrix[1][0] = 1;
+            matrix[1][1] = 0;
+            matrix[1][2] = 3;
+            matrix[2][0] = 5;
+            matrix[2][1] = 2;
+            matrix[2][2] = 7;
+            return matrix;
+        }
+
+        let half_matrix = Self::generate_matrix(n / 2);
+        let half_n = n as usize / 2;
+        for i in 0..half_n {
+            for j in 0..half_n {
+                matrix[i][j] = 4 * half_matrix[i][j];
+                matrix[i][j + half_n] = 4 * half_matrix[i][j] + 2;
+                matrix[i + half_n][j] = 4 * half_matrix[i][j] + 3;
+                matrix[i + half_n][j + half_n] = 4 * half_matrix[i][j] + 1;
+            }
+        }
+        matrix
+    }
+}
+
+pub struct OrderedDitheringRelativeColorQuantizer;
+
+impl OrderedDitheringRelativeColorQuantizer {
+    #[inline(always)]
+    fn get_color(levels: &[u8], matrix: &Vec<Vec<u32>>) -> u8 {
+        todo!()
+    }
+}
+
+impl ColorQuantizer for OrderedDitheringRelativeColorQuantizer {
+    type Params = DitheringParameters;
+
+    fn generate_output_image(params: Self::Params, initial_image: &ColorImage) -> ColorImage {
+        let r_levels = DitheringCommon::generate_color_levels(params.k_r);
+        let g_levels = DitheringCommon::generate_color_levels(params.k_g);
+        let b_levels = DitheringCommon::generate_color_levels(params.k_b);
+
+        let n_r = OrderedDitheringCommon::find_n(params.k_r);
+        let m_r = OrderedDitheringCommon::generate_matrix(n_r);
+        let n_g = OrderedDitheringCommon::find_n(params.k_g);
+        let m_g = OrderedDitheringCommon::generate_matrix(n_g);
+        let n_b = OrderedDitheringCommon::find_n(params.k_b);
+        let m_b = OrderedDitheringCommon::generate_matrix(n_b);
+        // TODO:
+        // generate k colors in each channel
+        // calculate `col` from alg description - col is index in the list of k colors in each channel
+
+        let output_pixesl: Vec<_> = initial_image
+            .pixels
+            .par_chunks(256)
+            .flat_map(|chunk| {
+                chunk
+                    .iter()
+                    .flat_map(|&pixel| pixel.to_array())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        let size = initial_image.size;
+        ColorImage::from_rgba_unmultiplied(size, output_pixesl.as_slice())
+    }
+}
