@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use egui::{Color32, ColorImage};
+use rand::Rng;
 use rayon::prelude::*;
 
 use crate::algorithms::{DitheringParameters, PopularityParameters};
@@ -155,31 +156,19 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
         let mut output_pixels = initial_image.pixels.clone();
         for i in 0..output_pixels.len() {
             let pixel = output_pixels[i];
-            let (r, r_diff) = ErrorDiffusionDitheringColorQuantizer::find_closest_level_and_diff(
-                pixel.r(),
-                &r_levels,
-            );
-            let (g, g_diff) = ErrorDiffusionDitheringColorQuantizer::find_closest_level_and_diff(
-                pixel.g(),
-                &g_levels,
-            );
-            let (b, b_diff) = ErrorDiffusionDitheringColorQuantizer::find_closest_level_and_diff(
-                pixel.b(),
-                &b_levels,
-            );
+            let (r, r_diff) = Self::find_closest_level_and_diff(pixel.r(), &r_levels);
+            let (g, g_diff) = Self::find_closest_level_and_diff(pixel.g(), &g_levels);
+            let (b, b_diff) = Self::find_closest_level_and_diff(pixel.b(), &b_levels);
             output_pixels[i] = Color32::from_rgb(r, g, b);
-            for j in 0..ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX.len() {
-                let id = i + j + ErrorDiffusionDitheringColorQuantizer::OFFSET;
+            for j in 0..Self::ERROR_WAGE_MATRIX.len() {
+                let id = i + j + Self::OFFSET;
                 if id >= output_pixels.len() {
                     break;
                 }
                 let to_change = output_pixels[id];
-                let new_r = to_change.r() as f32
-                    + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * r_diff;
-                let new_g = to_change.g() as f32
-                    + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * g_diff;
-                let new_b = to_change.b() as f32
-                    + ErrorDiffusionDitheringColorQuantizer::ERROR_WAGE_MATRIX[j] * b_diff;
+                let new_r = to_change.r() as f32 + Self::ERROR_WAGE_MATRIX[j] * r_diff;
+                let new_g = to_change.g() as f32 + Self::ERROR_WAGE_MATRIX[j] * g_diff;
+                let new_b = to_change.b() as f32 + Self::ERROR_WAGE_MATRIX[j] * b_diff;
                 output_pixels[id] = Color32::from_rgb(new_r as u8, new_g as u8, new_b as u8);
             }
         }
@@ -195,9 +184,10 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
     }
 }
 
-pub struct OrderedDitheringCommon;
+trait OrderedDitheringCommon {
+    fn get_color(value: u8, levels: &[u8], matrix: &[Vec<u32>], x: usize, y: usize, n: usize)
+        -> u8;
 
-impl OrderedDitheringCommon {
     const POSSIBLE_N: [u8; 7] = [2, 3, 4, 6, 8, 12, 16];
 
     fn find_n(k: u8) -> u8 {
@@ -241,11 +231,55 @@ impl OrderedDitheringCommon {
         }
         matrix
     }
+
+    fn ordered_dithering_output_image(
+        params: DitheringParameters,
+        initial_image: &ColorImage,
+    ) -> ColorImage {
+        let r_levels = DitheringCommon::generate_color_levels(params.k_r);
+        let g_levels = DitheringCommon::generate_color_levels(params.k_g);
+        let b_levels = DitheringCommon::generate_color_levels(params.k_b);
+
+        let n_r = Self::find_n(params.k_r);
+        let m_r = Self::generate_matrix(n_r);
+        let n_g = Self::find_n(params.k_g);
+        let m_g = Self::generate_matrix(n_g);
+        let n_b = Self::find_n(params.k_b);
+        let m_b = Self::generate_matrix(n_b);
+
+        const CHUNK_SIZE: usize = 512;
+
+        let size = initial_image.size;
+
+        let output_pixesl: Vec<_> = initial_image
+            .pixels
+            .par_chunks(CHUNK_SIZE)
+            .enumerate()
+            .flat_map(|(chunk_id, chunk)| {
+                chunk
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(pixel_id, &pixel)| {
+                        let id = chunk_id * CHUNK_SIZE + pixel_id;
+                        let x = id / size[0];
+                        let y = id - x * size[0];
+                        let new_r = Self::get_color(pixel.r(), &r_levels, &m_r, x, y, n_r as usize);
+                        let new_g = Self::get_color(pixel.g(), &g_levels, &m_g, x, y, n_g as usize);
+                        let new_b = Self::get_color(pixel.b(), &b_levels, &m_b, x, y, n_b as usize);
+                        let new_pixel = Color32::from_rgb(new_r, new_g, new_b);
+                        new_pixel.to_array()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        ColorImage::from_rgba_unmultiplied(size, output_pixesl.as_slice())
+    }
 }
 
 pub struct OrderedDitheringRelativeColorQuantizer;
 
-impl OrderedDitheringRelativeColorQuantizer {
+impl OrderedDitheringCommon for OrderedDitheringRelativeColorQuantizer {
     fn get_color(
         value: u8,
         levels: &[u8],
@@ -273,64 +307,41 @@ impl ColorQuantizer for OrderedDitheringRelativeColorQuantizer {
     type Params = DitheringParameters;
 
     fn generate_output_image(params: Self::Params, initial_image: &ColorImage) -> ColorImage {
-        let r_levels = DitheringCommon::generate_color_levels(params.k_r);
-        let g_levels = DitheringCommon::generate_color_levels(params.k_g);
-        let b_levels = DitheringCommon::generate_color_levels(params.k_b);
+        Self::ordered_dithering_output_image(params, initial_image)
+    }
+}
 
-        let n_r = OrderedDitheringCommon::find_n(params.k_r);
-        let m_r = OrderedDitheringCommon::generate_matrix(n_r);
-        let n_g = OrderedDitheringCommon::find_n(params.k_g);
-        let m_g = OrderedDitheringCommon::generate_matrix(n_g);
-        let n_b = OrderedDitheringCommon::find_n(params.k_b);
-        let m_b = OrderedDitheringCommon::generate_matrix(n_b);
+pub struct OrderedDitheringRandomColorQuantizer;
 
-        const CHUNK_SIZE: usize = 512;
+impl OrderedDitheringCommon for OrderedDitheringRandomColorQuantizer {
+    fn get_color(
+        value: u8,
+        levels: &[u8],
+        matrix: &[Vec<u32>],
+        _x: usize,
+        _y: usize,
+        n: usize,
+    ) -> u8 {
+        let mut rng = rand::thread_rng();
+        let n_sq = n * n;
+        let scaled_value = value as usize * (levels.len() - 1);
+        let col = scaled_value / 255;
+        let re = scaled_value % 255;
+        let i: usize = rng.gen_range(0..=(n - 1));
+        let j: usize = rng.gen_range(0..=(n - 1));
+        let final_col = if re > (matrix[i][j] as usize * 255 / n_sq) {
+            col + 1
+        } else {
+            col
+        };
+        levels[final_col]
+    }
+}
 
-        let size = initial_image.size;
+impl ColorQuantizer for OrderedDitheringRandomColorQuantizer {
+    type Params = DitheringParameters;
 
-        let output_pixesl: Vec<_> = initial_image
-            .pixels
-            .par_chunks(CHUNK_SIZE)
-            .enumerate()
-            .flat_map(|(chunk_id, chunk)| {
-                chunk
-                    .iter()
-                    .enumerate()
-                    .flat_map(|(pixel_id, &pixel)| {
-                        let id = chunk_id * CHUNK_SIZE + pixel_id;
-                        let x = id / size[0];
-                        let y = id - x * size[0];
-                        let new_r = OrderedDitheringRelativeColorQuantizer::get_color(
-                            pixel.r(),
-                            &r_levels,
-                            &m_r,
-                            x,
-                            y,
-                            n_r as usize,
-                        );
-                        let new_g = OrderedDitheringRelativeColorQuantizer::get_color(
-                            pixel.g(),
-                            &g_levels,
-                            &m_g,
-                            x,
-                            y,
-                            n_g as usize,
-                        );
-                        let new_b = OrderedDitheringRelativeColorQuantizer::get_color(
-                            pixel.b(),
-                            &b_levels,
-                            &m_b,
-                            x,
-                            y,
-                            n_b as usize,
-                        );
-                        let new_pixel = Color32::from_rgb(new_r, new_g, new_b);
-                        new_pixel.to_array()
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .collect();
-
-        ColorImage::from_rgba_unmultiplied(size, output_pixesl.as_slice())
+    fn generate_output_image(params: Self::Params, initial_image: &ColorImage) -> ColorImage {
+        Self::ordered_dithering_output_image(params, initial_image)
     }
 }

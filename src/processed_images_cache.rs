@@ -7,7 +7,8 @@ use crate::{
     algorithms::{Algorithm, AlgorithmCacheKey, AlgorithmParameters},
     color_quantizers::{
         AverageDitheringColorQuantizer, ColorQuantizer, ErrorDiffusionDitheringColorQuantizer,
-        OrderedDitheringRelativeColorQuantizer, PopularityAlgorithmColorQuantizer,
+        OrderedDitheringRandomColorQuantizer, OrderedDitheringRelativeColorQuantizer,
+        PopularityAlgorithmColorQuantizer,
     },
 };
 
@@ -48,7 +49,13 @@ impl ProcessedImagesCache {
                 };
                 ErrorDiffusionDitheringColorQuantizer::generate_output_image(params, initial_image)
             }
-            Algorithm::OrderedDitheringRandom => todo!(),
+            Algorithm::OrderedDitheringRandom => {
+                let params = match key.params {
+                    AlgorithmParameters::Dithering(dithering_parameters) => dithering_parameters,
+                    AlgorithmParameters::Popularity(_) => panic!("UNREACHABLE"),
+                };
+                OrderedDitheringRandomColorQuantizer::generate_output_image(params, initial_image)
+            }
             Algorithm::OrderedDitheringRelative => {
                 let params = match key.params {
                     AlgorithmParameters::Dithering(dithering_parameters) => dithering_parameters,
