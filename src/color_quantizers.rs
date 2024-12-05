@@ -246,9 +246,26 @@ impl OrderedDitheringCommon {
 pub struct OrderedDitheringRelativeColorQuantizer;
 
 impl OrderedDitheringRelativeColorQuantizer {
-    #[inline(always)]
-    fn get_color(levels: &[u8], matrix: &Vec<Vec<u32>>) -> u8 {
-        todo!()
+    fn get_color(
+        value: u8,
+        levels: &[u8],
+        matrix: &[Vec<u32>],
+        x: usize,
+        y: usize,
+        n: usize,
+    ) -> u8 {
+        let n_sq = n * n;
+        let scaled_value = value as usize * (levels.len() - 1);
+        let col = scaled_value / 255;
+        let re = scaled_value % 255;
+        let i = x % n;
+        let j = y % n;
+        let final_col = if re > (matrix[i][j] as usize * 255 / n_sq) {
+            col + 1
+        } else {
+            col
+        };
+        levels[final_col]
     }
 }
 
@@ -266,22 +283,54 @@ impl ColorQuantizer for OrderedDitheringRelativeColorQuantizer {
         let m_g = OrderedDitheringCommon::generate_matrix(n_g);
         let n_b = OrderedDitheringCommon::find_n(params.k_b);
         let m_b = OrderedDitheringCommon::generate_matrix(n_b);
-        // TODO:
-        // generate k colors in each channel
-        // calculate `col` from alg description - col is index in the list of k colors in each channel
+
+        const CHUNK_SIZE: usize = 512;
+
+        let size = initial_image.size;
 
         let output_pixesl: Vec<_> = initial_image
             .pixels
-            .par_chunks(256)
-            .flat_map(|chunk| {
+            .par_chunks(CHUNK_SIZE)
+            .enumerate()
+            .flat_map(|(chunk_id, chunk)| {
                 chunk
                     .iter()
-                    .flat_map(|&pixel| pixel.to_array())
+                    .enumerate()
+                    .flat_map(|(pixel_id, &pixel)| {
+                        let id = chunk_id * CHUNK_SIZE + pixel_id;
+                        let x = id / size[0];
+                        let y = id - x * size[0];
+                        let new_r = OrderedDitheringRelativeColorQuantizer::get_color(
+                            pixel.r(),
+                            &r_levels,
+                            &m_r,
+                            x,
+                            y,
+                            n_r as usize,
+                        );
+                        let new_g = OrderedDitheringRelativeColorQuantizer::get_color(
+                            pixel.g(),
+                            &g_levels,
+                            &m_g,
+                            x,
+                            y,
+                            n_g as usize,
+                        );
+                        let new_b = OrderedDitheringRelativeColorQuantizer::get_color(
+                            pixel.b(),
+                            &b_levels,
+                            &m_b,
+                            x,
+                            y,
+                            n_b as usize,
+                        );
+                        let new_pixel = Color32::from_rgb(new_r, new_g, new_b);
+                        new_pixel.to_array()
+                    })
                     .collect::<Vec<_>>()
             })
             .collect();
 
-        let size = initial_image.size;
         ColorImage::from_rgba_unmultiplied(size, output_pixesl.as_slice())
     }
 }
