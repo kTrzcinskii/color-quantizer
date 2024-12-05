@@ -75,7 +75,6 @@ impl ColorQuantizer for AverageDitheringColorQuantizer {
     }
 }
 
-// TODO: for bigger Ks it's quite slow, any idea to speed it up?
 pub struct PopularityAlgorithmColorQuantizer;
 
 impl PopularityAlgorithmColorQuantizer {
@@ -141,8 +140,38 @@ impl ErrorDiffusionDitheringColorQuantizer {
         (level, diff)
     }
 
+    fn get_color_with_err(
+        color: Color32,
+        error: f32,
+        r_diff: f32,
+        g_diff: f32,
+        b_diff: f32,
+    ) -> Color32 {
+        let new_r = color.r() as f32 + error * r_diff;
+        let new_g = color.g() as f32 + error * g_diff;
+        let new_b = color.b() as f32 + error * b_diff;
+        Color32::from_rgb(new_r as u8, new_g as u8, new_b as u8)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn add_error(
+        output_pixels: &mut [Color32],
+        row: usize,
+        col: usize,
+        width: usize,
+        error: f32,
+        r_diff: f32,
+        g_diff: f32,
+        b_diff: f32,
+    ) {
+        let id = row * width + col;
+        if id < output_pixels.len() {
+            let color = output_pixels[id];
+            output_pixels[id] = Self::get_color_with_err(color, error, r_diff, g_diff, b_diff);
+        }
+    }
+
     const ERROR_WAGE_MATRIX: [f32; 4] = [0.4375, 0.1875, 0.3125, 0.0625];
-    const OFFSET: usize = 5;
 }
 
 impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
@@ -153,6 +182,8 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
         let g_levels = DitheringCommon::generate_color_levels(params.k_g);
         let b_levels = DitheringCommon::generate_color_levels(params.k_b);
 
+        let size = initial_image.size;
+
         let mut output_pixels = initial_image.pixels.clone();
         for i in 0..output_pixels.len() {
             let pixel = output_pixels[i];
@@ -160,19 +191,55 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
             let (g, g_diff) = Self::find_closest_level_and_diff(pixel.g(), &g_levels);
             let (b, b_diff) = Self::find_closest_level_and_diff(pixel.b(), &b_levels);
             output_pixels[i] = Color32::from_rgb(r, g, b);
-            for j in 0..Self::ERROR_WAGE_MATRIX.len() {
-                let id = i + j + Self::OFFSET;
-                if id >= output_pixels.len() {
-                    break;
-                }
-                let to_change = output_pixels[id];
-                let new_r = to_change.r() as f32 + Self::ERROR_WAGE_MATRIX[j] * r_diff;
-                let new_g = to_change.g() as f32 + Self::ERROR_WAGE_MATRIX[j] * g_diff;
-                let new_b = to_change.b() as f32 + Self::ERROR_WAGE_MATRIX[j] * b_diff;
-                output_pixels[id] = Color32::from_rgb(new_r as u8, new_g as u8, new_b as u8);
-            }
+
+            let row = i / size[0];
+            let column = i - row * size[0];
+
+            Self::add_error(
+                &mut output_pixels,
+                row,
+                column + 1,
+                size[0],
+                Self::ERROR_WAGE_MATRIX[0],
+                r_diff,
+                g_diff,
+                b_diff,
+            );
+
+            Self::add_error(
+                &mut output_pixels,
+                row + 1,
+                column - 1,
+                size[0],
+                Self::ERROR_WAGE_MATRIX[1],
+                r_diff,
+                g_diff,
+                b_diff,
+            );
+
+            Self::add_error(
+                &mut output_pixels,
+                row + 1,
+                column,
+                size[0],
+                Self::ERROR_WAGE_MATRIX[2],
+                r_diff,
+                g_diff,
+                b_diff,
+            );
+
+            Self::add_error(
+                &mut output_pixels,
+                row + 1,
+                column + 1,
+                size[0],
+                Self::ERROR_WAGE_MATRIX[3],
+                r_diff,
+                g_diff,
+                b_diff,
+            );
         }
-        let size = initial_image.size;
+
         ColorImage::from_rgba_unmultiplied(
             size,
             output_pixels
