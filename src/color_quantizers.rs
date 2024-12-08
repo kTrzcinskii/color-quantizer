@@ -206,16 +206,18 @@ impl ColorQuantizer for ErrorDiffusionDitheringColorQuantizer {
                 b_diff,
             );
 
-            Self::add_error(
-                &mut output_pixels,
-                row + 1,
-                column - 1,
-                size[0],
-                Self::ERROR_WAGE_MATRIX[1],
-                r_diff,
-                g_diff,
-                b_diff,
-            );
+            if column > 0 {
+                Self::add_error(
+                    &mut output_pixels,
+                    row + 1,
+                    column - 1,
+                    size[0],
+                    Self::ERROR_WAGE_MATRIX[1],
+                    r_diff,
+                    g_diff,
+                    b_diff,
+                );
+            }
 
             Self::add_error(
                 &mut output_pixels,
